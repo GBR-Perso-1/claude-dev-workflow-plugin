@@ -1,0 +1,26 @@
+{
+  "environments": {
+    "qa": {
+      "variables": {
+        "AZURE_WEBAPP_NAME": "",
+        "APP_URL": "",
+        "OLD_SETTING_TO_DELETE": "@remove"
+      },
+      "secrets": {
+        "APPSETTINGS_JSON": "@file:./secrets/qa/appsettings.json",
+        "AZURE_DEPLOYMENT_TOKEN": "",
+        "LEGACY_KEY_TO_DELETE": "@remove"
+      }
+    },
+    "prod": {
+      "variables": {
+        "AZURE_WEBAPP_NAME": "",
+        "APP_URL": ""
+      },
+      "secrets": {
+        "APPSETTINGS_JSON": "@file:./secrets/prod/appsettings.json",
+        "AZURE_DEPLOYMENT_TOKEN": ""
+      }
+    }
+  }
+}

@@ -1,0 +1,14 @@
+{
+  "name": "gbr-perso",
+  "owner": {
+    "name": "Brourhant Guillaume"
+  },
+  "plugins": [
+    {
+      "name": "dev-workflow",
+      "source": "./",
+      "description": "General AI development workflow — agents, orchestration skills, project init, and language rules.",
+      "version": "1.2.0"
+    }
+  ]
+}
