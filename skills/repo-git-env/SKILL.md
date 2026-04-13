@@ -9,44 +9,18 @@ The skill validates the config, verifies the target repo, shows a dry-run summar
 
 ## When invoked without arguments
 
-If `$ARGUMENTS` is empty, print a short usage guide and wait for user input — do **not** proceed to the steps below. Example output:
-
-```
-**GitHub Environment Setup**
-
-Sets (or removes) GitHub environment variables and secrets from a JSON config.
-
-Usage:
-  /repo-git-env <repo> <config.json>       — apply config to repo
-  /repo-git-env generate [project-path]     — scan codebase, generate template
-
-  <repo>          owner/repo or full GitHub URL
-  <config.json>   path to the env config file (see template below)
-
-Examples:
-  /repo-git-env my-org/my-repo ./env-setup.json
-  /repo-git-env generate .
-  /repo-git-env generate C:/Workspace/Dev/my-project
-
-Config template: ${CLAUDE_PLUGIN_ROOT}/skills/repo-git-env/env-config.template.json
-
-Special values:
-  @file:./path   — read secret value from a file at apply time
-  @remove        — delete the variable or secret from the environment
-```
-
-Then stop and wait for the user to provide arguments.
+If `$ARGUMENTS` is empty, **run `init` for the current working directory** — do not print usage, do not wait for input. Proceed directly to the **Init mode** section using `.` as the project path.
 
 ## Arguments
 
 `$ARGUMENTS`: either:
-- `generate [project-path]` — scan a project codebase and generate an `env-config.json` template (see **Generate mode** below)
+- `init [project-path]` — scan a project codebase and create `.github/env-config.json` (see **Init mode** below)
 - `<repo-url-or-owner/repo> <path-to-config.json>` — apply config to a repo (see **Apply mode** below)
 
-If the first argument is `generate`, follow the **Generate mode** section.
+If the first argument is `init`, follow the **Init mode** section.
 Otherwise, follow the **Apply mode** section.
 
-If only one argument is provided and it's not `generate`, ask for the missing one.
+If only one argument is provided and it's not `init`, ask for the missing one.
 
 ## Guardrails
 
@@ -110,16 +84,20 @@ When a value is exactly `"@remove"`, the variable or secret will be **deleted** 
 - Works for both `variables` and `secrets`
 - In the summary, show removals on dedicated `REMOVE:` lines so they stand out
 
-## Generate mode
+## Init mode
 
-When the first argument is `generate`, scan a project's codebase to discover which GitHub environment variables and secrets it expects, then write an `env-config.json` with placeholder values.
+When the first argument is `init` (or when no arguments are provided), scan a project's codebase to discover which GitHub environment variables and secrets it expects, then write `.github/env-config.json` with placeholder values.
 
-### Generate 1. Resolve project path
+### Init 1. Resolve project path
 
-- If a path is given after `generate`, use it. Otherwise use the current working directory.
+- If a path is given after `init`, use it. Otherwise use the current working directory.
 - Verify the path exists and looks like a project root (has `.github/` or `src/` or a `.sln`/`package.json`).
+- **If `.github/env-config.json` already exists in the resolved project path, print a message and stop — do not overwrite:**
+  ```
+  .github/env-config.json already exists. Edit it directly or delete it to re-init.
+  ```
 
-### Generate 2. Scan the codebase for variable and secret references
+### Init 2. Scan the codebase for variable and secret references
 
 Scan these sources in order, collecting variable and secret names per environment:
 
@@ -136,7 +114,7 @@ Scan these sources in order, collecting variable and secret names per environmen
 3. **Terraform files** (`terraform/*.tf`, `infra/*.tf`):
    - Look for `var.` references that map to GitHub variables (e.g. variables passed via `-var` in workflow files)
 
-### Generate 3. Assign placeholder values
+### Init 3. Assign placeholder values
 
 For each discovered entry, assign a sensible placeholder:
 
@@ -148,20 +126,35 @@ If no environments were detected, default to `qa` and `prod`.
 
 If a variable or secret appears in workflows without a specific environment context (e.g. referenced in a job with no `environment:` field), include it in **all** detected environments.
 
-### Generate 4. Write the template file
+### Init 4. Write the config file
 
 Write the generated JSON to `<project-path>/.github/env-config.json`.
 
 Before writing, show the user a preview of the generated JSON and the output path. Ask for confirmation before writing.
 
-If the file already exists, warn the user and ask whether to overwrite.
+(The file-already-exists check happens in Init 1 — by this step the file is guaranteed not to exist.)
 
-### Generate 5. Print next steps
+### Init 5. Ensure the file is gitignored
+
+After writing, check whether `.github/env-config.json` is covered by `<project-path>/.gitignore`:
+
+- Read `.gitignore` (if it exists).
+- If `.github/env-config.json` (or a pattern that matches it, e.g. `env-config.json` or `.github/`) is **not** already present, append the following line to `.gitignore`:
+  ```
+  .github/env-config.json
+  ```
+- Print one of:
+  - `.github/env-config.json` already in `.gitignore` — no change needed.
+  - Added `.github/env-config.json` to `.gitignore`.
+
+If `.gitignore` does not exist, create it with `.github/env-config.json` as the sole entry.
+
+### Init 6. Print next steps
 
 After writing, print:
 
 ```
-Template written to <path>/.github/env-config.json
+Config written to <path>/.github/env-config.json
 
 Next steps:
   1. Fill in the placeholder values (search for < and >)
