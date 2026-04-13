@@ -14,13 +14,13 @@ If `$ARGUMENTS` is empty, **run `init` for the current working directory** — d
 ## Arguments
 
 `$ARGUMENTS`: either:
+- _(empty)_ — run `init` for the current working directory (see **Init mode** below)
 - `init [project-path]` — scan a project codebase and create `.github/env-config.json` (see **Init mode** below)
-- `<repo-url-or-owner/repo> <path-to-config.json>` — apply config to a repo (see **Apply mode** below)
+- `apply` — auto-detect the current repo and apply `.github/env-config.json` (see **Apply mode** below)
 
 If the first argument is `init`, follow the **Init mode** section.
-Otherwise, follow the **Apply mode** section.
-
-If only one argument is provided and it's not `init`, ask for the missing one.
+If the first argument is `apply`, follow the **Apply mode** section.
+If arguments are empty, follow the **Init mode** section using `.` as the project path.
 
 ## Guardrails
 
@@ -159,53 +159,55 @@ Config written to <path>/.github/env-config.json
 Next steps:
   1. Fill in the placeholder values (search for < and >)
   2. For @file: secrets, place the actual files at the referenced paths
-  3. Apply with: /repo-git-env <owner/repo> <path>/.github/env-config.json
+  3. Apply with: /repo-git-env apply
 ```
 
 ---
 
 ## Apply mode
 
-The following steps apply when the skill is invoked with `<repo> <config.json>` arguments.
+The following steps apply when the skill is invoked with `apply`.
 
-### 1. Parse arguments
+### Apply 1. Auto-detect the repo
 
-Extract the repo identifier and config file path from `$ARGUMENTS`.
+Run:
+```bash
+gh repo view --json nameWithOwner,url
+```
+from the current working directory (no repo argument — `gh` resolves it from the git remote automatically).
 
-Accept repo as either:
+- If the command fails (not a git repo, no remote, no access), print the error and **stop**.
+- Extract `nameWithOwner` (e.g. `my-org/my-repo`) and `url` for display.
 
-- Full URL: `https://github.com/my-org/my-repo` → extract `my-org/my-repo`
-- Short form: `my-org/my-repo`
+### Apply 2. Locate the config file
 
-### 2. Verify the target repo
+Look for `.github/env-config.json` relative to the current working directory.
 
-Run `gh repo view <owner/repo> --json nameWithOwner,url` to confirm:
+- If the file does not exist, print:
+  ```
+  .github/env-config.json not found. Run /repo-git-env init first.
+  ```
+  and **stop**.
 
-- The repo exists
-- The user has access
-- The resolved `nameWithOwner` matches what was provided
-
-If the repo doesn't exist or access is denied, print the error and **stop**.
-
-### 3. Read and validate the config
+### Apply 3. Read and validate the config
 
 Read the JSON config file. Validate:
 
-- File exists
 - Valid JSON
 - Has `environments` with at least one environment
 - No empty string values in `secrets` or `variables` (print which keys are empty and stop)
-- All `@file:` references point to files that exist (print which are missing and stop)
+- All `@file:` references point to files that exist, resolved relative to `.github/` (print which are missing and stop)
 - `@remove` values are valid in both `variables` and `secrets` — they mark items for deletion
 
-### 4. Show dry-run summary and ask for confirmation
+### Apply 4. Show confirmation gate and ask for approval
 
-Print the verified repo prominently, then the summary table (secrets masked, file refs shown as paths):
+Before doing anything, present the full picture to the user — what was auto-detected and what will happen:
 
 ```
 ──────────────────────────────────────
-  TARGET REPO: my-org/my-repo
-  https://github.com/my-org/my-repo
+  REPO:   my-org/my-repo
+          https://github.com/my-org/my-repo
+  CONFIG: .github/env-config.json
 ──────────────────────────────────────
 
   [qa]
@@ -226,12 +228,12 @@ Print the verified repo prominently, then the summary table (secrets masked, fil
 Then ask:
 
 ```
-Type YES to apply these changes to my-org/my-repo, or anything else to cancel.
+Apply these changes to my-org/my-repo? Type YES to confirm, or anything else to cancel.
 ```
 
 **Do NOT proceed unless the user responds with exactly `YES`.** Any other response = cancel.
 
-### 5. Apply changes
+### Apply 5. Apply changes
 
 Execute `gh` commands one by one, printing progress for each:
 
