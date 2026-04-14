@@ -2,7 +2,7 @@
 name: "codebase-explorer"
 description: "Use this agent when the user wants a quick business-level overview of what an application does, its purpose, domain, and key features. This agent explores the codebase structure, reads key files, and synthesizes a concise business summary.\\n\\nExamples:\\n- user: \"What does this app do?\"\\n  assistant: \"Let me use the codebase-explorer agent to quickly survey the application and give you a business overview.\"\\n- user: \"Give me a summary of this project\"\\n  assistant: \"I'll launch the codebase-explorer agent to explore the codebase and provide a high-level business summary.\"\\n- user: \"I'm new to this repo, what's it about?\"\\n  assistant: \"I'll use the codebase-explorer agent to give you a quick orientation on what this application does from a business perspective.\""
 tools: Glob, Grep, ListMcpResourcesTool, Read, ReadMcpResourceTool, WebFetch, WebSearch
-model: haiku
+model: sonnet
 color: green
 ---
 
@@ -54,4 +54,3 @@ Who uses it, how many, internal vs external, and any other relevant context.
 - Be concise — the whole summary should fit in roughly 200-400 words
 - If something is unclear, say so briefly rather than guessing
 - Prioritise speed — spend no more than necessary exploring before synthesising your answer
-
