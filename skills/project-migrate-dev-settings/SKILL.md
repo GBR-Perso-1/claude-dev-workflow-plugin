@@ -7,9 +7,9 @@ description: >
 
 ## Important rules
 
-Read and follow all rules in `${CLAUDE_PLUGIN_ROOT}/skills/shared/_ux-rules.md`.
-Read and follow all rules in `${CLAUDE_PLUGIN_ROOT}/skills/shared/_git-rules.md`.
-Read and follow the conventions in `${CLAUDE_PLUGIN_ROOT}/skills/shared/_dev-settings-conventions.md`.
+Read and follow all rules in [`../shared/_ux-rules.md`](../shared/_ux-rules.md).
+Read and follow all rules in [`../shared/_git-rules.md`](../shared/_git-rules.md).
+Read and follow the conventions in [`../shared/_dev-settings-conventions.md`](../shared/_dev-settings-conventions.md).
 
 ## Arguments
 
@@ -40,21 +40,49 @@ candidate key name, target file suggestion, target variable suggestion.
 
 Scan all non-excluded, git-tracked text files for:
 - High-entropy strings (≥ 20 chars of mixed alphanum/special)
-- Known formats: Bearer tokens, connection strings containing `Password=`, `pwd=`, `password:`, AWS key patterns (`AKIA...`), private key PEM blocks (`-----BEGIN * PRIVATE KEY-----`)
-- Common secret variable names assigned to non-empty string literals: `API_KEY`, `SECRET`, `PASSWORD`, `TOKEN`, `CLIENT_SECRET`, `PRIVATE_KEY`, `CONNECTION_STRING`, etc. (case-insensitive; right-hand side must be a non-empty string literal, not a placeholder)
+- Known formats: Bearer tokens, connection strings containing `Password=`, `pwd=`, `password:`, AWS key patterns (`AKIA...`), private key PEM blocks (`-----BEGIN * PRIVATE KEY-----`), API scope URIs matching `api://<guid>` patterns
+- Common secret variable names assigned to non-empty string literals (case-insensitive; right-hand side must be a non-empty string literal, not a placeholder):
+  - Credentials: `API_KEY`, `SECRET`, `PASSWORD`, `TOKEN`, `CLIENT_SECRET`, `PRIVATE_KEY`, `CONNECTION_STRING`, `APIKEY`
+  - Azure / Entra: `ClientId`, `TenantId`, `TenantName`, `AppId`, `Audience`, `ClientSecret`, `Authority`
+  - Generic: `ACCESS_KEY`, `SIGNING_KEY`, `ENCRYPTION_KEY`, `WEBHOOK_SECRET`
 
 **Strategy B — Committed env/config files**
 
 Identify git-tracked files matching these name patterns:
 `.env`, `.env.*`, `appsettings.*.json` (excluding `appsettings.json` itself unless it contains actual values), `secrets.json`, `local.settings.json`, `*.local.json`, `.secrets`, `credentials.*`
 
-Flag each file as a finding if it is tracked by git.
+For each matching file that is tracked by git, parse its contents and produce **one finding per variable**, not one finding per file:
+- For dotenv-style files (`.env`, `.env.*`): each `KEY=value` line where value is non-empty and not a placeholder is one finding.
+- For JSON config files (`appsettings.*.json`, `secrets.json`, etc.): walk every leaf string value recursively. Each non-empty, non-placeholder leaf is one finding. Use the full JSON path as the candidate variable name (e.g. `AzureEntraId:ClientId`, `ConnectionStrings:SqlConnection`).
+- Skip values that are clearly placeholders: empty strings, `null`, `<your-value>`, `placeholder`, `TODO`, `changeme`, `localhost` (for non-connection-string fields), `false`, `true`, `0`.
+- Record the file path and line number for each finding.
 
 **Strategy C — Manifest cross-reference**
 
 If `.claude/dev-settings.json` exists, parse it. For each entry's key, attempt to retrieve its value from the private source (`it--dev-settings`) only if `gh` auth is available.
 If `gh` is not available or not authenticated, skip this strategy and note it in the report.
 For each value retrieved, grep all non-excluded tracked files for that literal value. Flag any match as a finding.
+
+#### Key naming — shared vs repo-specific credentials
+
+When suggesting a key name for each finding, apply this heuristic **before** defaulting to `rise.<repo>.<purpose>`:
+
+**Use `rise.shared.<purpose>` when the credential is org-wide** — the same value is used by every Rise project in development. Known shared credentials:
+
+| Variable pattern | Suggested key | Rationale |
+|-----------------|---------------|-----------|
+| `TenantId`, `TenantName` | `rise.shared.entra-tenant-id` / `rise.shared.entra-tenant-name` | One Azure AD tenant for the whole org |
+| Third-party dev API keys reused across repos (e.g. `CountryStateCityApi__ApiKey`, `GoogleMaps__ApiKey`) | `rise.shared.<vendor>-api-key` | Shared dev-tier key; single entry in `it--dev-settings` |
+
+**Use `rise.<repo>.<purpose>` when the credential is repo-specific** — it differs per application or environment:
+
+| Variable pattern | Example key | Rationale |
+|-----------------|-------------|-----------|
+| `ClientId`, `AppId`, `Audience` | `rise.<repo>.entra-client-id` | Each app has its own App Registration |
+| `ConnectionStrings:*`, `*_CONNECTION_STRING` | `rise.<repo>.db-connection-string` | Connection strings include db name and server, which differ per repo |
+| `ClientSecret`, `*_SECRET` | `rise.<repo>.entra-client-secret` | Per-app secret |
+
+When in doubt, default to repo-specific. The developer can correct it in the Phase 5 review gate. Always note in the report if you are proposing a shared key, so the developer can verify with Guillaume that the key already exists in `it--dev-settings`.
 
 ### Phase 3 — Report
 
@@ -65,6 +93,7 @@ For each finding:
 - Detection method
 - Redacted preview (first 4 chars + `***` — never the full value)
 - Suggested `dev-settings.json` entry (key name, targetFile, targetVariable)
+- If the suggested key uses `rise.shared.*`: flag it with a note — "Proposed as shared key — verify with Guillaume that this entry already exists in `it--dev-settings` before adding a duplicate."
 
 Conclude with a **"What to do"** section listing keys to add to `it--dev-settings` and directing the developer to run `/project-migrate-dev-settings sanitize` to act.
 
