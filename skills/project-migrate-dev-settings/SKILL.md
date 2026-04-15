@@ -51,10 +51,18 @@ Scan all non-excluded, git-tracked text files for:
 Identify git-tracked files matching these name patterns:
 `.env`, `.env.*`, `appsettings.*.json` (excluding `appsettings.json` itself unless it contains actual values), `secrets.json`, `local.settings.json`, `*.local.json`, `.secrets`, `credentials.*`
 
-For each matching file that is tracked by git, parse its contents and produce **one finding per variable**, not one finding per file:
-- For dotenv-style files (`.env`, `.env.*`): each `KEY=value` line where value is non-empty and not a placeholder is one finding.
-- For JSON config files (`appsettings.*.json`, `secrets.json`, etc.): walk every leaf string value recursively. Each non-empty, non-placeholder leaf is one finding. Use the full JSON path as the candidate variable name (e.g. `AzureEntraId:ClientId`, `ConnectionStrings:SqlConnection`).
-- Skip values that are clearly placeholders: empty strings, `null`, `<your-value>`, `placeholder`, `TODO`, `changeme`, `localhost` (for non-connection-string fields), `false`, `true`, `0`.
+For each matching file that is tracked by git, parse its contents and produce **one finding per variable**, not one finding per file. Do not filter by perceived sensitivity — every variable that is not a structural placeholder gets a finding, regardless of whether it looks like a secret. The purpose of the manifest is centralised rotation, not only security: even values like Entra ClientId or TenantId belong in the manifest.
+
+- **dotenv-style files** (`.env`, `.env.*`): each `KEY=value` line where value is non-empty and not a placeholder is one finding.
+- **JSON config files** (`appsettings.*.json`, `secrets.json`, etc.): enumerate every leaf string value at every nesting depth. Use the following `jq` command to extract all leaves programmatically — do not rely on manual inspection:
+  ```
+  jq -r 'path(..) as $p | select(getpath($p) | type == "string" and length > 0) | [($p | map(tostring) | join(":")), getpath($p)] | @tsv' <file>
+  ```
+  Each output row is one finding. The first column is the colon-joined JSON path (e.g. `AzureEntraId:ClientId`, `ConnectionStrings:SqlConnection`); the second column is the value (used only for redaction preview — never print it).
+
+  **Example**: a file containing `{ "AzureEntraId": { "TenantId": "5dcc...", "ClientId": "3d3e...", "Audience": "api://3d3e..." } }` MUST produce three findings: `AzureEntraId:TenantId`, `AzureEntraId:ClientId`, `AzureEntraId:Audience`. If the jq command produces them, they are findings — do not discard any.
+
+- Skip only values that are structural placeholders: empty strings, `null`, `<your-value>`, `placeholder`, `TODO`, `changeme`, `false`, `true`, `0`.
 - Record the file path and line number for each finding.
 
 **Strategy C — Manifest cross-reference**
@@ -84,7 +92,9 @@ When suggesting a key name for each finding, apply this heuristic **before** def
 
 When in doubt, default to repo-specific. The developer can correct it in the Phase 5 review gate. Always note in the report if you are proposing a shared key, so the developer can verify with Guillaume that the key already exists in `it--dev-settings`.
 
-### Phase 3 — Report
+### Phase 3 — Report and manifest draft
+
+**Important**: Do not classify any finding as "INFO", "no action required", or "no action needed". Every variable found in a committed config file is a finding that gets a manifest entry — the manifest purpose is centralised rotation, not only security. Values like Entra TenantId, ClientId, and Audience belong in the manifest because they may need to be rotated and should not be hardcoded in every repo.
 
 Group findings by detection method. Show summary counts first.
 
@@ -95,9 +105,18 @@ For each finding:
 - Suggested `dev-settings.json` entry (key name, targetFile, targetVariable)
 - If the suggested key uses `rise.shared.*`: flag it with a note — "Proposed as shared key — verify with Guillaume that this entry already exists in `it--dev-settings` before adding a duplicate."
 
-Conclude with a **"What to do"** section listing keys to add to `it--dev-settings` and directing the developer to run `/project-migrate-dev-settings sanitize` to act.
+**After presenting the report**, write `.claude/dev-settings.json` with all suggested manifest entries. This write is intentionally autonomous and ungated — the file is a draft manifest for human review with no runtime effect until the developer deliberately runs `/project-inject-dev-settings`. Gating this write would break the scan-then-correct workflow the developer expects.
+- If `.claude/dev-settings.json` already exists, preserve existing entries and append new ones (do not duplicate entries with the same key).
+- If it does not exist, create it.
+- Use the manifest format from `_dev-settings-conventions.md`.
+- Inform the developer: "`.claude/dev-settings.json` has been written with N entries. Review and correct the key names, targetFile, and targetVariable values before running `/project-inject-dev-settings`."
 
-If no findings: report clean with scan summary (files scanned, strategies used).
+Conclude with a **"What to do"** section listing:
+1. Keys to add to `it--dev-settings` (contact Guillaume)
+2. Entries in `.claude/dev-settings.json` to review and correct
+3. Next: run `/project-migrate-dev-settings sanitize` to clean the committed files and optionally purge git history
+
+If no findings: report clean with scan summary (files scanned, strategies used). Do not write an empty manifest file.
 
 ---
 
