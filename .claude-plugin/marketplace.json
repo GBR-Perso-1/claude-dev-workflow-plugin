@@ -8,7 +8,7 @@
       "name": "dev-workflow",
       "source": "./",
       "description": "General AI development workflow — agents, orchestration skills, project init, and language rules.",
-      "version": "2.1.3"
+      "version": "2.1.4"
     }
   ]
 }

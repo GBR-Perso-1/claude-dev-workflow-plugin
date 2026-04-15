@@ -30,11 +30,13 @@ Before scanning, build the exclusion set:
 - Binary files (detected by git's `--binary` flag or file extension heuristic)
 - Known safe directories: `node_modules/`, `vendor/`, `.git/`, `dist/`, `build/`, `out/`, `bin/`, `obj/`
 
+### Scan procedure
+
+Runs in both Scan & Report mode (Phase 2) and Sanitise mode (Phase 4). Collect findings into a unified list. Each finding records: file path, line number, detection method, redacted value preview, candidate key name, target file suggestion, target variable suggestion.
+
 ### Phase 2 — Three-strategy scan
 
-Run all three detection strategies. Collect findings into a unified list.
-Each finding records: file path, line number, detection method, redacted value preview,
-candidate key name, target file suggestion, target variable suggestion.
+Run the **Scan procedure** above.
 
 **Strategy A — Pattern matching**
 
@@ -65,17 +67,7 @@ For each matching file that is tracked by git, parse its contents and produce **
 - Skip only values that are structural placeholders: empty strings, `null`, `<your-value>`, `placeholder`, `TODO`, `changeme`, `false`, `true`, `0`.
 - Record the file path and line number for each finding.
 
-**`targetFile` for Strategy B findings** — the manifest `targetFile` must point to the **gitignored injection target**, not the committed source file. The committed source file will have its values replaced with placeholders and stay in git as a template; the injection skill writes real values into the separate target file. Use these conventions:
-
-| Committed source file | Suggested injection target (`targetFile`) |
-|----------------------|-------------------------------------------|
-| `.env` | `.env.local` |
-| `.env.<name>` | `.env.<name>.local` |
-| `appsettings.<env>.json` | `appsettings.local.json` |
-| `secrets.json` | `secrets.local.json` |
-| `local.settings.json` | `local.settings.local.json` |
-
-The injection target file does not need to exist yet — the injection skill creates it.
+**`targetFile` suggestion for Strategy B findings** — suggest the committed source file itself as the `targetFile`. The developer will correct this in the manifest if needed — what the injection skill does with it is outside this skill's scope.
 
 **Strategy C — Manifest cross-reference**
 
@@ -136,7 +128,7 @@ If no findings: report clean with scan summary (files scanned, strategies used).
 
 ### Phase 4 — Full scan
 
-Re-run the three-strategy scan (same as Scan & Report Phase 2).
+Run the **Scan procedure** (same logic as Phase 2).
 If zero findings: halt with a clean message.
 
 ### Phase 5 — Per-secret review
@@ -156,12 +148,9 @@ If all findings are skipped: halt with a message. No changes made.
 
 For each approved finding:
 
-- **REQ-2.4**: Replace the exposed value in the **committed source file** with a placeholder (for dotenv-style: `KEY=<injected>`; for JSON: `"<injected>"`). This file keeps its placeholder in git — it is the template. Do not add it to `.gitignore`.
-- **REQ-2.5**: For Strategy B findings, the `targetFile` is the gitignored injection target (e.g. `appsettings.local.json`, `.env.local`) — not the committed source file. Add the `targetFile` to `.gitignore` if it is not already there. This is the file the injection skill writes real values into; the committed source file stays in git with placeholders.
+- **REQ-2.4 / REQ-2.5**: For each approved finding, replace the exposed value in the source file with `<injected>` (for dotenv-style: `KEY=<injected>`; for JSON string values: `"<injected>"`). The file stays in git with its placeholder — no `.gitignore` change needed.
 
 **REQ-2.6**: Create or update `.claude/dev-settings.json` with all approved manifest entries. Existing entries are preserved; new entries are appended. Use the manifest format from `_dev-settings-conventions.md`.
-
-**REQ-2.7**: For each `targetFile` in new manifest entries: check `.gitignore` and add the path if absent.
 
 ### Phase 7 — Confirmation gate (before history rewrite)
 
@@ -182,7 +171,11 @@ If "Cancel": stop. Keep all working tree changes. Skip to Phase 10.
 
 Preferred tool: `git filter-repo`. Check availability first. Fallback: BFG Repo Cleaner. If neither is available: halt with installation instructions and error message. Do not retry.
 
-**REQ-2.12**: After rewrite, ask the developer to confirm the branch name and remote before pushing. Use `AskUserQuestion`. On confirmation: run `git push --force-with-lease <remote> <branch>` for each rewritten branch.
+**REQ-2.12**: After rewrite, present the branch name(s) and remote detected from `git remote` and `git branch` and ask for confirmation before pushing. Use `AskUserQuestion` with options:
+- "Confirm — force-push `<branch>` to `<remote>`"
+- "Cancel — skip push (I will push manually)"
+
+On confirmation: run `git push --force-with-lease <remote> <branch>` for each rewritten branch.
 
 **REQ-2.13**: If rewrite or push fails: surface the exact error and halt. Do not retry.
 
@@ -196,7 +189,7 @@ Preferred tool: `git filter-repo`. Check availability first. Fallback: BFG Repo 
 
 If "Not yet": note it in the final summary. Skip REQ-2.16.
 
-**REQ-2.16**: If confirmed: offer to run `/project-inject-dev-settings`.
+**REQ-2.16**: If confirmed: offer to run `/project-inject-dev-settings`. Use `AskUserQuestion` with options:
 - "Yes — run `/project-inject-dev-settings` now"
 - "No — I'll run it manually later"
 
