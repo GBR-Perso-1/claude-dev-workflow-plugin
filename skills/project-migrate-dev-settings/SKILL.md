@@ -65,6 +65,18 @@ For each matching file that is tracked by git, parse its contents and produce **
 - Skip only values that are structural placeholders: empty strings, `null`, `<your-value>`, `placeholder`, `TODO`, `changeme`, `false`, `true`, `0`.
 - Record the file path and line number for each finding.
 
+**`targetFile` for Strategy B findings** — the manifest `targetFile` must point to the **gitignored injection target**, not the committed source file. The committed source file will have its values replaced with placeholders and stay in git as a template; the injection skill writes real values into the separate target file. Use these conventions:
+
+| Committed source file | Suggested injection target (`targetFile`) |
+|----------------------|-------------------------------------------|
+| `.env` | `.env.local` |
+| `.env.<name>` | `.env.<name>.local` |
+| `appsettings.<env>.json` | `appsettings.local.json` |
+| `secrets.json` | `secrets.local.json` |
+| `local.settings.json` | `local.settings.local.json` |
+
+The injection target file does not need to exist yet — the injection skill creates it.
+
 **Strategy C — Manifest cross-reference**
 
 If `.claude/dev-settings.json` exists, parse it. For each entry's key, attempt to retrieve its value from the private source (`it--dev-settings`) only if `gh` auth is available.
@@ -113,8 +125,8 @@ For each finding:
 
 Conclude with a **"What to do"** section listing:
 1. Keys to add to `it--dev-settings` (contact Guillaume)
-2. Entries in `.claude/dev-settings.json` to review and correct
-3. Next: run `/project-migrate-dev-settings sanitize` to clean the committed files and optionally purge git history
+2. Entries in `.claude/dev-settings.json` to review and correct (key names, targetFile, targetVariable)
+3. Next: run `/project-migrate-dev-settings sanitize` to replace exposed values in committed files with placeholders and optionally purge git history
 
 If no findings: report clean with scan summary (files scanned, strategies used). Do not write an empty manifest file.
 
@@ -144,8 +156,8 @@ If all findings are skipped: halt with a message. No changes made.
 
 For each approved finding:
 
-- **REQ-2.4**: Replace the exposed secret value in the source file with a reference to the target variable (e.g. for dotenv-style files: replace value with `${TARGET_VARIABLE}`; for JSON: replace with `"<injected>"`).
-- **REQ-2.5**: For Strategy B findings (committed env/config files): remove the secret value from the file (replace the variable line with a blank value or placeholder comment) and append the file path to `.gitignore`.
+- **REQ-2.4**: Replace the exposed value in the **committed source file** with a placeholder (for dotenv-style: `KEY=<injected>`; for JSON: `"<injected>"`). This file keeps its placeholder in git — it is the template. Do not add it to `.gitignore`.
+- **REQ-2.5**: For Strategy B findings, the `targetFile` is the gitignored injection target (e.g. `appsettings.local.json`, `.env.local`) — not the committed source file. Add the `targetFile` to `.gitignore` if it is not already there. This is the file the injection skill writes real values into; the committed source file stays in git with placeholders.
 
 **REQ-2.6**: Create or update `.claude/dev-settings.json` with all approved manifest entries. Existing entries are preserved; new entries are appended. Use the manifest format from `_dev-settings-conventions.md`.
 
