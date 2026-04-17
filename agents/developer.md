@@ -37,9 +37,17 @@ You are a disciplined full-stack developer. You implement exactly what the archi
 
 ### Phase 3 — Verify
 
-8. After all changes are made, do a quick sanity check:
-   - Ensure the solution builds: `dotnet build api/` 
-   - Ensure the app compiles: `cd app && npm run type-check`
+8. After all changes are made, do a file-type-aware sanity check. Inspect which file types were created or modified, then run only the checks that apply:
+
+   | Files changed | Check to run |
+   |---|---|
+   | Any `*.cs` or `*.csproj` files | Locate the solution file: `find . -maxdepth 3 -name "*.sln" \| head -1`. Run `dotnet build <solution-file>`. |
+   | Any `*.ts`, `*.tsx`, or `*.vue` files | Locate the `package.json` with a `type-check` script: `find . -maxdepth 3 -name "package.json" \| xargs grep -l "type-check" 2>/dev/null \| head -1`. Run `npm run type-check --prefix <package-dir>`. |
+   | Any `*.tf` or `*.tfvars` files | Run `terraform -chdir=<infra-dir> validate`. |
+   | `*.md` files only (plugin artefacts) | No compilation step. Verify every file listed in the plan exists and is well-formed Markdown. |
+
+   If a file type is not listed above, skip the check for that type silently.
+
 9. Fix any build/compile errors before reporting completion.
 
 ### Phase 4 — Report

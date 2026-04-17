@@ -52,6 +52,29 @@ With the ecosystem snapshot in hand, analyse the stated requirement:
 
 State **"No conflicts found"** explicitly if the analysis is clean.
 
+### Phase 2b — Context-Tier Survey
+
+The orchestrator supplies the path to the user's contexts manifest in the spawn message. Read that file as your first action in this phase:
+
+```bash
+cat "$MANIFEST_PATH" 2>/dev/null || echo "MANIFEST_ABSENT"
+```
+
+Where `$MANIFEST_PATH` is the path string you received from the orchestrator (typically `$USERPROFILE/.claude/contexts.json` on Windows or `$HOME/.claude/contexts.json` on Unix). Use the literal value supplied — do not guess or hardcode.
+
+If the file is present and non-empty, parse the JSON and extract:
+- The set of top-level field names.
+- The value shape of each field (scalar string, string array, etc.).
+- The overall density — a lean manifest signals the user wants it kept lean.
+
+These extracted fields constitute the **Tier-2 reference set** for this planning run. Any per-user value a proposed artefact needs is Tier 2 if it matches a field in this set, otherwise a Tier-3 candidate (subject to the judgement gate).
+
+If the file is absent or empty, the Tier-2 reference set is empty. All per-user values default to Tier-3 candidate or inline-ask treatment. This is not fatal — proceed normally.
+
+Do not hardcode any manifest field names in your output. Refer only to "fields in the Tier-2 reference set loaded above" when classifying values.
+
+This reading is mandatory. Do not skip it even if you expect no tier-3 proposal.
+
 ### Phase 3 — Artefact Plan
 
 Produce the full structured plan using exactly this format:
@@ -72,6 +95,37 @@ Produce the full structured plan using exactly this format:
 **File**: `exact/path`
 **Purpose**: ...
 **Content outline**: ...
+
+## Context-Tier Compliance
+
+### Three-Tier Definitions
+
+| Tier | Name | When to use |
+|------|------|-------------|
+| 1 | Context-agnostic | No per-user context needed. Use relative paths, `${CLAUDE_PLUGIN_ROOT}`, cwd-derived values, standard env vars. Target for most artefacts. |
+| 2 | Existing manifest field | Per-user value genuinely needed; already declared in the user's contexts manifest (path supplied by orchestrator). Resolution order: explicit arg → manifest lookup → inline ask. Missing/incomplete manifest is never fatal — fall back to ask. Skills never silently write to manifest. |
+| 3 | Propose new manifest field | Only when tier 2 truly does not fit. Gated — see judgement gate below. |
+
+### Tier-3 Judgement Gate
+
+Before proposing a new manifest field, all four conditions below must hold. Record the verdict for each:
+
+1. **Reuse frequency** — the value is reused across multiple skills or invocations (not single-use).
+2. **Friction** — asking every time would create meaningful friction for the user.
+3. **Shape consistency** — the proposed field is consistent in shape (scalar string or string array) with existing manifest fields.
+4. **No closer tier-2 fit** — no existing manifest field, even imperfectly, covers the same value.
+
+If any condition fails, the artefact must use tier 1 or tier 2 instead. "Inline ask (no field at all)" is always preferred over a new field when the value is rarely used, highly variable per-call, or would be the only one of its kind in the manifest.
+
+### Compliance Table
+
+For every artefact listed above, classify every per-user value it needs:
+
+| Artefact | Value needed | Tier | Resolution | Judgement (tier 3 only) |
+|----------|-------------|------|------------|--------------------------|
+| ... | ... | 1 / 2 / 3 | e.g. "cwd-derived" / "manifest: <field from Tier-2 reference set>" / "inline ask" / "propose field: X" | (state which gate condition justified tier 3, or "N/A") |
+
+If no artefact needs per-user context: write "All artefacts are tier 1 — no per-user context required."
 
 ## Cross-Artefact Consistency Checks
 - Agent refs: every agent referenced via ${CLAUDE_PLUGIN_ROOT}/agents/<name>.md exists in agents/

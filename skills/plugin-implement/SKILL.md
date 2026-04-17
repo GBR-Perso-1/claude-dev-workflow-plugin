@@ -16,7 +16,7 @@ The requirement comes from `$ARGUMENTS`. If `$ARGUMENTS` is empty, use `AskUserQ
 ### Phase 1 — Ecosystem Survey & Design (Plugin Architect Agent)
 
 1. Spawn the agent defined in `${CLAUDE_PLUGIN_ROOT}/agents/plugin-architect.md`.
-   - Pass it: (a) the full requirement text, (b) instruction to perform the ecosystem survey first and embed the Ecosystem Snapshot in its plan output.
+   - Pass it: (a) the full requirement text, (b) instruction to perform the ecosystem survey first and embed the Ecosystem Snapshot in its plan output, (c) the user's contexts manifest path: `$USERPROFILE/.claude/contexts.json` (Windows) or `$HOME/.claude/contexts.json` (Unix) — use whichever matches the operating system; instruct the agent to read this file dynamically and to not assume any fields exist.
 2. Present the architect's plan to the user (ecosystem snapshot + conflict analysis + artefact list).
 3. Use `AskUserQuestion` with options:
    - "Looks good — proceed to implementation (Recommended)"
@@ -33,7 +33,7 @@ The requirement comes from `$ARGUMENTS`. If `$ARGUMENTS` is empty, use `AskUserQ
 ### Phase 3 — Validation (Plugin Reviewer Agent)
 
 7. Spawn the agent defined in `${CLAUDE_PLUGIN_ROOT}/agents/plugin-reviewer.md`.
-   - Pass it: (a) the original requirement, (b) the architect's approved plan, (c) the list of changed files from the developer's report.
+   - Pass it: (a) the original requirement, (b) the architect's approved plan, (c) the list of changed files from the developer's report, (d) the user's contexts manifest path: `$USERPROFILE/.claude/contexts.json` (Windows) or `$HOME/.claude/contexts.json` (Unix) — instruct the agent to read this file dynamically.
    - Instruct it to validate all changed files against plugin conventions.
 8. Collect the review report.
 
