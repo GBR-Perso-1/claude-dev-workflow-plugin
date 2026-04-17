@@ -33,18 +33,45 @@ Then stop and wait.
 - The first word must be `apply`. If it's anything else, print usage and stop.
 - The second word is the environment: `qa` or `prod`. If missing or invalid, ask for it.
 
-## Step 0: Credential check
+## Step 0: Auth file check
 
 **This is the very first check — run it before anything else.**
 
-Discover credential files for the target environment:
+The project's `infra/scripts/terraform-run.ps1` uses one of two auth formats. Detect which by grepping the script:
+
+- If it references `rise-env-` → **user auth (new)**: looks for `%USERPROFILE%\.azure\rise-env-<env>.env` (tenant + subscription, no secrets; MFA login performed by the script).
+- If it references `-credentials-` → **service-principal auth (legacy)**: looks for `%USERPROFILE%\.azure\*-credentials-<env>.ps1` (full SP creds).
+
+### User auth (new)
+
+Check `%USERPROFILE%\.azure\rise-env-<env>.env` exists.
+
+**Found** — announce and continue:
+```
+Using user auth: rise-env-<env>.env
+```
+
+**Missing** — stop:
+```
+No env file found for environment: <env>
+
+Create %USERPROFILE%\.azure\rise-env-<env>.env with:
+
+  ARM_SUBSCRIPTION_ID=<Azure_Subscription_ID>
+  ARM_TENANT_ID=<Azure_Tenant_ID>
+
+The script performs interactive `az login` (MFA) against this tenant — no client secret is stored on disk.
+```
+
+### Service-principal auth (legacy)
+
+Discover credential files:
 
 ```bash
 ls "$USERPROFILE/.azure/"*"-credentials-<env>.ps1" 2>/dev/null
 ```
 
-**No files found** — stop immediately and tell the user:
-
+**No files found** — stop:
 ```
 No credential file found for environment: <env>
 
@@ -58,14 +85,14 @@ Create %USERPROFILE%\.azure\<tenant>-credentials-<env>.ps1 with:
 Where <tenant> is a short name for the Azure tenant (e.g. "ekla", "perso").
 ```
 
-**Exactly one file found** — use it automatically. Extract the tenant name from the filename (the part before `-credentials-<env>.ps1`) and announce:
+**Exactly one file found** — use it and announce:
 ```
 Using tenant: <tenant> (<full-filename>)
 ```
 
-**Multiple files found** — list them and ask the user which tenant to use via `AskUserQuestion`. Wait for the answer before proceeding.
+**Multiple files found** — list them and ask the user which tenant to use via `AskUserQuestion`. Wait before proceeding.
 
-Do NOT proceed to the structure check or pipeline until a credential file is resolved.
+Do NOT proceed to the structure check or pipeline until the auth file is resolved.
 
 ## Structure sanity check
 
@@ -123,7 +150,7 @@ Only proceed to the pipeline if all checks pass.
 
 Run:
 ```bash
-cd infra/terraform && pwsh -NoProfile -NonInteractive ../scripts/terraform-run.ps1 -Environment <env> -Mode validate 2>&1
+cd infra/terraform && pwsh -NoProfile ../scripts/terraform-run.ps1 -Environment <env> -Mode validate 2>&1
 ```
 
 - Capture all output.
@@ -134,7 +161,7 @@ cd infra/terraform && pwsh -NoProfile -NonInteractive ../scripts/terraform-run.p
 
 Run:
 ```bash
-cd infra/terraform && pwsh -NoProfile -NonInteractive ../scripts/terraform-run.ps1 -Environment <env> -Mode plan -PlanFile plan.tfplan 2>&1
+cd infra/terraform && pwsh -NoProfile ../scripts/terraform-run.ps1 -Environment <env> -Mode plan -PlanFile plan.tfplan 2>&1
 ```
 
 - Capture all output.
@@ -228,7 +255,7 @@ If cancelled, print "Apply cancelled." and **stop**.
 
 Run:
 ```bash
-cd infra/terraform && pwsh -NoProfile -NonInteractive ../scripts/terraform-run.ps1 -Environment <env> -Mode apply -PlanFile plan.tfplan 2>&1
+cd infra/terraform && pwsh -NoProfile ../scripts/terraform-run.ps1 -Environment <env> -Mode apply -PlanFile plan.tfplan 2>&1
 ```
 
 - Capture all output.
