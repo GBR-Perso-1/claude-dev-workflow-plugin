@@ -206,7 +206,7 @@ If the user selects **Yes**: run the **Embedded Injection Flow** below.
 
 **Embedded Injection Flow**
 
-> **Maintenance note**: this flow mirrors `/project-inject-dev-settings`. If that skill's phases change, update this embedded copy in sync.
+> **Maintenance note**: this flow mirrors `/project-inject-dev-settings`. If that skill's phases change (including Phase 0 / Step 0.0 dev-settings source resolution), update this embedded copy in sync.
 
 All guardrails apply without exception:
 
@@ -218,6 +218,20 @@ All guardrails apply without exception:
 On any halt condition below, record outcome as `injection_failed` with the halt reason and continue to Step 7 (do not abort project-init).
 
 > On any halt condition, run `rm -f "$SETTINGS_FILE" "$INJECT_TMP"` before recording the outcome and proceeding to Step 7.
+
+**Phase 0 — Resolve dev-settings source**
+
+Apply R.2–R.3 from the context resolution contract against the current working directory to resolve the active context.
+
+- If a context is resolved and it declares `dev_settings_repo` and `dev_settings_owner`:
+  ```
+  DEV_SETTINGS_REPO="<dev_settings_owner>/<dev_settings_repo>"
+  ```
+- If the context is resolved but one or both fields are absent, or if no context matches and no manifest exists:
+  ```
+  DEV_SETTINGS_REPO="it--dev-settings"
+  ```
+  Announce the fallback: `No dev_settings_repo/dev_settings_owner found in manifest context — falling back to unqualified it--dev-settings.`
 
 **Phase I — Preflight**
 
@@ -235,9 +249,9 @@ If not authenticated: record outcome as `injection_failed` with reason `gh CLI i
 
 Step I.3 — Verify private source repo is reachable:
 ```bash
-gh repo view it--dev-settings --json name --jq '.name' 2>&1
+gh repo view $DEV_SETTINGS_REPO --json name --jq '.name' 2>&1
 ```
-On any failure: record outcome as `injection_failed` with reason `Cannot reach it--dev-settings. Check your gh authentication and network connection. If you are a new team member, you may need to request access from the platform admin.`, then proceed to Step 7.
+On any failure: record outcome as `injection_failed` with reason `Cannot reach $DEV_SETTINGS_REPO. Check your gh authentication and network connection. If you are a new team member, you may need to request access from the platform admin.`, then proceed to Step 7.
 
 Step I.4 — Manifest is already validated in 6C above. Skip re-validation.
 
@@ -245,13 +259,13 @@ Step I.4 — Manifest is already validated in 6C above. Skip re-validation.
 
 Step II.1 — Download settings to a temp file:
 ```bash
-SETTINGS_FILE="/tmp/it--dev-settings-$(date +%s)_$$.json"
-gh api repos/it--dev-settings/contents/settings.json \
+SETTINGS_FILE="/tmp/dev-settings-$(date +%s)_$$.json"
+gh api repos/$DEV_SETTINGS_REPO/contents/settings.json \
   --jq '.content' | base64 -d > "$SETTINGS_FILE"
 ```
 Note: on macOS, replace `base64 -d` with `base64 -D` if you see an 'invalid option' error.
 
-If this fails: delete the temp file, record outcome as `injection_failed` with reason `Failed to fetch settings from it--dev-settings. No values were injected.`, then proceed to Step 7.
+If this fails: delete the temp file, record outcome as `injection_failed` with reason `Failed to fetch settings from $DEV_SETTINGS_REPO. No values were injected.`, then proceed to Step 7.
 
 Step II.2 — Verify all keys are present. For every `key` in the manifest, verify it exists in `$SETTINGS_FILE`. Collect missing keys. If any missing: delete temp file, record outcome as `injection_failed` with reason:
 ```
@@ -259,7 +273,7 @@ The following keys were not found in the private settings source:
   - <key1>
   - <key2>
 
-Ask the platform admin (Guillaume) to add these entries.
+Ask the platform admin to add these entries.
 No values were injected.
 ```
 Then proceed to Step 7.
@@ -375,7 +389,7 @@ Append a **Dev Settings** block based on the outcome recorded in Step 6:
 
 Include this additional line only when outcome is `manifest_created`:
 ```
-  - Run /project-inject-dev-settings once the keys have been added to it--dev-settings
+  - Run /project-inject-dev-settings once the keys have been added to the private dev-settings source
 ```
 
 Include this additional line only when outcome is `injection_deferred`:

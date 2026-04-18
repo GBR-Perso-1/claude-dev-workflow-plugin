@@ -9,6 +9,8 @@ Read and follow all rules in `${CLAUDE_PLUGIN_ROOT}/skills/shared/_ux-rules.md`.
 
 Read and follow the conventions in `${CLAUDE_PLUGIN_ROOT}/skills/shared/_dev-settings-conventions.md`.
 
+Read and follow the context resolution contract in `${CLAUDE_PLUGIN_ROOT}/skills/shared/_context-resolution.md`.
+
 ## Guardrails
 
 - **Never** reveal any credential value in any form — not in summaries, error messages, step narration, reasoning output, or tool-call commentary. The value exists only inside `$NEWVAL` in the shell. Do not refer to, quote, or describe the content of `$NEWVAL` at any point.
@@ -21,6 +23,22 @@ Read and follow the conventions in `${CLAUDE_PLUGIN_ROOT}/skills/shared/_dev-set
 ## Phase 0 — Preflight
 
 All checks run before anything else. Halt on first failure.
+
+### Step 0.0 — Resolve dev-settings source
+
+Apply R.2–R.3 from the context resolution contract against the current working directory to resolve the active context.
+
+- If a context is resolved and it declares `dev_settings_repo` and `dev_settings_owner`:
+  ```
+  DEV_SETTINGS_REPO="<dev_settings_owner>/<dev_settings_repo>"
+  ```
+- If the context is resolved but one or both fields are absent, or if no context matches and no manifest exists:
+  ```
+  DEV_SETTINGS_REPO="it--dev-settings"
+  ```
+  Announce the fallback: `No dev_settings_repo/dev_settings_owner found in manifest context — falling back to unqualified it--dev-settings.`
+
+Use `$DEV_SETTINGS_REPO` for all subsequent references to the private source.
 
 ### Step 0.1 — Check `jq` is installed
 
@@ -50,13 +68,13 @@ gh CLI is not authenticated. Run: gh auth login
 ### Step 0.3 — Verify private source repo is reachable
 
 ```bash
-gh repo view it--dev-settings --json name --jq '.name' 2>&1
+gh repo view $DEV_SETTINGS_REPO --json name --jq '.name' 2>&1
 ```
 
 On any failure, halt:
 
 ```
-Cannot reach it--dev-settings. Check your gh authentication and network connection.
+Cannot reach $DEV_SETTINGS_REPO. Check your gh authentication and network connection.
 If you are a new team member, you may need to request access from the platform admin.
 ```
 
@@ -84,8 +102,8 @@ Parse `.claude/dev-settings.json`. It must be a JSON array where each entry cont
 ### Step 1.1 — Download settings to a temp file
 
 ```bash
-SETTINGS_FILE="/tmp/it--dev-settings-$(date +%s)_$$.json"
-gh api repos/it--dev-settings/contents/settings.json \
+SETTINGS_FILE="/tmp/dev-settings-$(date +%s)_$$.json"
+gh api repos/$DEV_SETTINGS_REPO/contents/settings.json \
   --jq '.content' | base64 -d > "$SETTINGS_FILE"
 ```
 
@@ -98,7 +116,7 @@ rm -f "$SETTINGS_FILE"
 ```
 
 ```
-Failed to fetch settings from it--dev-settings. No values were injected.
+Failed to fetch settings from $DEV_SETTINGS_REPO. No values were injected.
 ```
 
 ### Step 1.2 — Verify all keys are present
@@ -114,7 +132,7 @@ The following keys were not found in the private settings source:
   - <key1>
   - <key2>
 
-Ask the platform admin (Guillaume) to add these entries.
+Ask the platform admin to add these entries.
 No values were injected.
 ```
 

@@ -49,17 +49,19 @@ The manifest contains no values — only mappings. Values are stored exclusively
 
 ### Private source location
 
-All credential values are stored in the private GitHub repository:
+The default private GitHub repository for credential values is:
 
 ```
 it--dev-settings
 ```
 
+This is the fallback when no manifest context is configured. In practice, the **actual source** comes from the resolved context's `dev_settings_repo` and `dev_settings_owner` fields in `%USERPROFILE%\.claude\contexts.json` (Windows) / `$HOME/.claude/contexts.json` (Unix). Skills compose the fully-qualified repo as `<dev_settings_owner>/<dev_settings_repo>` and fall back to the unqualified `it--dev-settings` when those fields are absent.
+
 This repo is admin-controlled. Developers have read access via their existing `gh` CLI authentication. No additional credentials or tokens are required.
 
 ### Adding a new entry
 
-To add a new setting key to the private source, contact the **platform admin (Guillaume)**. Provide:
+To add a new setting key to the private source, contact the **platform admin (your platform admin)**. Provide:
 
 1. The proposed key name (following the convention above).
 2. The credential value.

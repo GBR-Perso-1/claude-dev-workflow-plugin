@@ -10,6 +10,7 @@ description: >
 Read and follow all rules in [`../shared/_ux-rules.md`](../shared/_ux-rules.md).
 Read and follow all rules in [`../shared/_git-rules.md`](../shared/_git-rules.md).
 Read and follow the conventions in [`../shared/_dev-settings-conventions.md`](../shared/_dev-settings-conventions.md).
+Read and follow the context resolution contract in [`../shared/_context-resolution.md`](../shared/_context-resolution.md).
 
 ## Arguments
 
@@ -22,6 +23,24 @@ Any other value: print usage and stop.
 ---
 
 ## Mode: Scan & Report (default)
+
+### Step 0.0 — Resolve dev-settings source
+
+Apply R.2–R.3 from the context resolution contract against the current working directory to resolve the active context.
+
+- If a context is resolved and it declares `dev_settings_repo` and `dev_settings_owner`:
+  ```
+  DEV_SETTINGS_REPO="<dev_settings_owner>/<dev_settings_repo>"
+  DEV_SETTINGS_ADMIN="<dev_settings_admin>"   # falls back to "the platform admin" if absent
+  ```
+- If the context is resolved but one or both fields are absent, or if no context matches and no manifest exists:
+  ```
+  DEV_SETTINGS_REPO="it--dev-settings"
+  DEV_SETTINGS_ADMIN="the platform admin"
+  ```
+  Announce the fallback.
+
+Use `$DEV_SETTINGS_REPO` and `$DEV_SETTINGS_ADMIN` for all subsequent references to the private source and its administrator.
 
 ### Phase 1 — Exclusion list
 
@@ -71,7 +90,7 @@ For each matching file that is tracked by git, parse its contents and produce **
 
 **Strategy C — Manifest cross-reference**
 
-If `.claude/dev-settings.json` exists, parse it. For each entry's key, attempt to retrieve its value from the private source (`it--dev-settings`) only if `gh` auth is available.
+If `.claude/dev-settings.json` exists, parse it. For each entry's key, attempt to retrieve its value from the private source (`$DEV_SETTINGS_REPO`) only if `gh` auth is available.
 If `gh` is not available or not authenticated, skip this strategy and note it in the report.
 For each value retrieved, grep all non-excluded tracked files for that literal value. Flag any match as a finding.
 
@@ -94,7 +113,7 @@ When suggesting a key name for each finding, apply this heuristic **before** def
 | `ConnectionStrings:*`, `*_CONNECTION_STRING` | `rise.<repo>.db-connection-string` | Connection strings include db name and server, which differ per repo |
 | `ClientSecret`, `*_SECRET` | `rise.<repo>.entra-client-secret` | Per-app secret |
 
-When in doubt, default to repo-specific. The developer can correct it in the Phase 5 review gate. Always note in the report if you are proposing a shared key, so the developer can verify with Guillaume that the key already exists in `it--dev-settings`.
+When in doubt, default to repo-specific. The developer can correct it in the Phase 5 review gate. Always note in the report if you are proposing a shared key, so the developer can verify with $DEV_SETTINGS_ADMIN that the key already exists in `$DEV_SETTINGS_REPO`.
 
 ### Phase 3 — Report and manifest draft
 
@@ -107,7 +126,7 @@ For each finding:
 - Detection method
 - Redacted preview (first 4 chars + `***` — never the full value)
 - Suggested `dev-settings.json` entry (key name, targetFile, targetVariable)
-- If the suggested key uses `rise.shared.*`: flag it with a note — "Proposed as shared key — verify with Guillaume that this entry already exists in `it--dev-settings` before adding a duplicate."
+- If the suggested key uses `rise.shared.*`: flag it with a note — "Proposed as shared key — verify with $DEV_SETTINGS_ADMIN that this entry already exists in `$DEV_SETTINGS_REPO` before adding a duplicate."
 
 **After presenting the report**, write `.claude/dev-settings.json` with all suggested manifest entries. This write is intentionally autonomous and ungated — the file is a draft manifest for human review with no runtime effect until the developer deliberately runs `/project-inject-dev-settings`. Gating this write would break the scan-then-correct workflow the developer expects.
 - If `.claude/dev-settings.json` already exists, preserve existing entries and append new ones (do not duplicate entries with the same key).
@@ -116,7 +135,7 @@ For each finding:
 - Inform the developer: "`.claude/dev-settings.json` has been written with N entries. Review and correct the key names, targetFile, and targetVariable values before running `/project-inject-dev-settings`."
 
 Conclude with a **"What to do"** section listing:
-1. Keys to add to `it--dev-settings` (contact Guillaume)
+1. Keys to add to `$DEV_SETTINGS_REPO` (contact $DEV_SETTINGS_ADMIN)
 2. Entries in `.claude/dev-settings.json` to review and correct (key names, targetFile, targetVariable)
 3. Next: run `/project-migrate-dev-settings sanitize` to replace exposed values in committed files with placeholders and optionally purge git history
 
@@ -125,6 +144,10 @@ If no findings: report clean with scan summary (files scanned, strategies used).
 ---
 
 ## Mode: Sanitise (`sanitize` argument)
+
+### Step 0.0 — Resolve dev-settings source
+
+Apply R.2–R.3 from the context resolution contract against the current working directory to resolve the active context (same logic as in Scan & Report mode Step 0.0). Derive `$DEV_SETTINGS_REPO` and `$DEV_SETTINGS_ADMIN`.
 
 ### Phase 4 — Full scan
 
@@ -181,9 +204,9 @@ On confirmation: run `git push --force-with-lease <remote> <branch>` for each re
 
 ### Phase 9 — Private source handoff
 
-**REQ-2.14**: Display the list of keys to add to `it--dev-settings`. Include key naming convention reminder (from `_dev-settings-conventions.md`) and instructions to contact the platform admin (Guillaume).
+**REQ-2.14**: Display the list of keys to add to `$DEV_SETTINGS_REPO`. Include key naming convention reminder (from `_dev-settings-conventions.md`) and instructions to contact $DEV_SETTINGS_ADMIN.
 
-**REQ-2.15**: Use `AskUserQuestion`: "Have you added all keys to `it--dev-settings`?"
+**REQ-2.15**: Use `AskUserQuestion`: "Have you added all keys to `$DEV_SETTINGS_REPO`?"
 - "Yes — all keys are added"
 - "Not yet — I'll do it later"
 
