@@ -1,5 +1,5 @@
 ---
-name: project-implement
+name: project-implement-new-features
 description: Implement a feature from a requirements document. Orchestrates architect, developer, tester, and reviewer agents in a feedback loop.
 ---
 
