@@ -68,6 +68,7 @@ Run `/project-session` at the start of a session to load full architectural cont
 
 ## Guardrails
 
+- **NEVER** modify Azure without explicit confirmation, you can read but NEVER WRITE to Azure without confirmation
 - Never push to remote without user confirmation
 - Never edit synced rule files in `.claude/rules/` — managed by `/project-init`
 <if infra/ detected:>
