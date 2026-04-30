@@ -37,6 +37,38 @@ Read and follow all rules in [`../shared/_ux-rules.md`](../shared/_ux-rules.md).
 
 ---
 
+### Phase 0.5 — Quick scan
+
+Using only Glob, Grep, and Read tools — without spawning any agents — perform a lightweight self-scan targeted at the investigation question from the confirmed brief.
+
+1. Use `Glob` to locate files whose names or paths are likely relevant to the question's subject area (e.g. matching key nouns or component names from the brief).
+2. Use `Grep` to search for key symbols, identifiers, or terms extracted from the brief across the codebase.
+3. Read the most relevant 3–5 files or file sections identified by steps 1 and 2.
+4. Produce a **Quick Findings** summary in this format:
+
+```markdown
+## Quick Findings — <one-line question title>
+
+### What was found
+<bullet list: relevant files, key symbols, patterns, or structural observations directly answering the question — grounded in specific file paths>
+
+### Limitations of this scan
+<what the quick scan could not determine — e.g. runtime behaviour, cross-service flows, Azure state>
+```
+
+Present the Quick Findings to the user, then ask via `AskUserQuestion`:
+
+- **Question**: "Quick scan complete. Is this sufficient for your investigation?"
+- **Options**:
+  - `This is enough — I have what I need`
+  - `Go deeper — run full investigation with agents`
+
+If the user selects **"This is enough"**: the skill ends here. Do not proceed to Phase 1.
+
+If the user selects **"Go deeper"**: proceed to Phase 1 below.
+
+---
+
 ### Phase 1 — Parallel investigation
 
 Launch **both agents simultaneously** when Azure is relevant. Otherwise launch only the code agent.

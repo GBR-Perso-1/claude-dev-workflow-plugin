@@ -36,6 +36,41 @@ Read and follow all rules in [`../shared/_ux-rules.md`](../shared/_ux-rules.md).
 
 ---
 
+### Phase 0.5 — Quick scan
+
+Using only Glob, Grep, and Read tools — without spawning any agents — perform a lightweight self-scan targeted at the suspected issue from the confirmed brief.
+
+1. Use `Glob` to locate files whose names or paths match the suspected area (component names, layer names, or service names from the brief).
+2. Use `Grep` to search for error-site indicators near the symptom: exception types, error messages, null-guard patterns, relevant function names, and identifiers from the brief.
+3. Read the most relevant 3–5 files or file sections identified by steps 1 and 2, focusing on error-handling paths, guard conditions, and the suspected call chain.
+4. Produce a **Quick Debug Summary** in this format:
+
+```markdown
+## Quick Debug Summary — <one-line issue title>
+
+### Suspected error site
+<file path + approximate location, with a one-sentence explanation of why this is the likely site>
+
+### Supporting evidence
+<bullet list: specific file paths, error-handling patterns, or code observations that support or contradict the suspicion>
+
+### Limitations of this scan
+<what static analysis alone cannot determine — e.g. runtime values, environment-specific state, Azure-side conditions>
+```
+
+Present the Quick Debug Summary to the user, then ask via `AskUserQuestion`:
+
+- **Question**: "Quick scan complete. Is this sufficient to locate the issue?"
+- **Options**:
+  - `This is enough — I have what I need`
+  - `Go deeper — run full investigation with agents`
+
+If the user selects **"This is enough"**: the skill ends here. Do not proceed to Phase 1.
+
+If the user selects **"Go deeper"**: proceed to Phase 1 below.
+
+---
+
 ### Phase 1 — Parallel investigation
 
 Launch **both agents simultaneously** when Azure is relevant. Otherwise launch only the code agent.
