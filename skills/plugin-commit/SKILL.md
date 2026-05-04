@@ -3,23 +3,37 @@ name: plugin-commit
 description: "Intelligently bump the plugin version based on changes, commit with a meaningful message, and push to main."
 ---
 
+## Important rules
+
+Read and follow the rules in `../shared/_ux-rules.md`.
+
 Analyse the changes in this plugin repo, determine the correct semantic version bump, commit, and push to main.
+
+## Arguments
+
+`$ARGUMENTS` is optional. If provided, treat it as the absolute path to the plugin repo root (e.g. `C:\Workspace\Dev\Perso.Applications\claude-platform-plugin`). If absent, use the current working directory as the repo root.
+
+Store the resolved path as REPO_ROOT.
 
 ## Steps
 
-### 1. Gather context
+### Phase 1 — Execute
 
-Run these in parallel:
+#### 1. Gather context
+
+Resolve REPO_ROOT from `$ARGUMENTS` (if provided) or CWD.
+
+Run these in parallel, using `git -C "<REPO_ROOT>"` for all git commands:
 
 ```bash
-git diff HEAD --stat
-git status --short
-git log --oneline -5
+git -C "<REPO_ROOT>" diff HEAD --stat
+git -C "<REPO_ROOT>" status --short
+git -C "<REPO_ROOT>" log --oneline -5
 ```
 
-Read `.claude-plugin/plugin.json` to get the current version.
+Read `<REPO_ROOT>/.claude-plugin/plugin.json` to get the current version.
 
-### 2. Ask for the commit message
+#### 2. Ask for the commit message
 
 Use `AskUserQuestion` to ask:
 
@@ -27,7 +41,7 @@ Use `AskUserQuestion` to ask:
 
 Free-text input. This is the human summary of the work done.
 
-### 3. Determine the version bump
+#### 3. Determine the version bump
 
 Analyse the diff stat + commit message together. Apply this logic:
 
@@ -46,7 +60,7 @@ Compute the new version from the current one (e.g. `1.2.0`):
 - minor → `1.3.0`
 - patch → `1.2.1`
 
-### 4. Confirm with the user
+#### 4. Confirm with the user
 
 Use `AskUserQuestion` to present:
 
@@ -61,28 +75,27 @@ Options:
 
 If the user picks an override, recompute the new version accordingly.
 
-### 5. Update version in both manifest files
+#### 5. Update version in both manifest files
 
 Edit in place:
-- `.claude-plugin/plugin.json` — `version` field
-- `.claude-plugin/marketplace.json` — `version` inside the plugins array
+- `<REPO_ROOT>/.claude-plugin/plugin.json` — `version` field
 
-### 6. Commit
+#### 6. Commit
 
 ```bash
-git add -A
-git commit -m "<user commit message>
+git -C "<REPO_ROOT>" add -- .claude-plugin/ skills/ agents/ rules/ hooks/ templates/
+git -C "<REPO_ROOT>" commit -m "<user commit message>
 
 chore: bump version to <new-version>"
 ```
 
-### 7. Push
+#### 7. Push
 
 ```bash
-git push origin main
+git -C "<REPO_ROOT>" push origin main
 ```
 
-### 8. Summary
+#### 8. Summary
 
 Output:
 
