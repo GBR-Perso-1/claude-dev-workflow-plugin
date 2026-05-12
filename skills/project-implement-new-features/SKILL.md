@@ -29,18 +29,20 @@ The user provides a requirement — either a path to a requirements document (fr
 
 5. Spawn the agent defined in `${CLAUDE_PLUGIN_ROOT}/agents/developer.md`.
    - Pass it the **approved architecture plan** and the **original requirements**.
-   - Instruct it to implement all changes described in the plan.
-6. Wait for the developer agent to complete. Collect its summary of changes made.
+   - Instruct it to implement all changes described in the plan, then **run the test suite inline** before returning (e.g. `dotnet test` / `npm test`). It should report which tests passed, failed, or were skipped — this is a quick smoke check, not a full test pass.
+6. Wait for the developer agent to complete. Collect its summary of changes made and the inline test results.
 
 ### Phase 3 — Testing (Test Agent)
 
-7. Spawn the agent defined in `${CLAUDE_PLUGIN_ROOT}/agents/test-writer.md`.
+7. If the developer's inline test run from Phase 2 showed failures unrelated to missing test coverage (i.e. source bugs), pass the failures back to the **developer agent** via `SendMessage` to fix them before proceeding. Skip directly to Phase 4 if the inline run was clean.
+
+8. Spawn the agent defined in `${CLAUDE_PLUGIN_ROOT}/agents/test-writer.md`.
    - Pass it: (1) the **original requirements**, (2) the **Test Strategy section** from the architect's plan.
    - The test-writer derives test scenarios from the requirements — not from what the developer coded.
-8. Evaluate the test report:
+9. Evaluate the test report:
    - **All pass** → proceed to Phase 4.
-   - **Failures due to source bugs** → pass the failing test details and bug descriptions back to the **developer agent** (via `SendMessage`) and instruct it to fix the bugs. Then re-run Phase 3 (spawn a fresh test-writer agent).
-   - **Maximum 3 iterations** of the dev↔test loop. If tests still fail after 3 rounds, present the situation to the user via `AskUserQuestion`:
+   - **Failures due to source bugs** → pass the failing test details back to the **developer agent** (via `SendMessage`) to fix. Then re-run Phase 3 (spawn a fresh test-writer agent).
+   - **Maximum 2 iterations** of the dev↔test loop. If tests still fail after 2 rounds, present via `AskUserQuestion`:
      - "Continue iterating"
      - "Skip failing tests and proceed to review"
      - "Stop here — I'll fix manually"
@@ -62,13 +64,13 @@ The user provides a requirement — either a path to a requirements document (fr
     - **Design reviewer**: `${CLAUDE_PLUGIN_ROOT}/agents/reviewer-design.md` — requirement coverage, domain boundaries, abstraction quality, consistency.
     - **Performance reviewer** *(only when stack detected)*: `${CLAUDE_PLUGIN_ROOT}/agents/reviewer-perf.md` — EF queries, unbounded loads, N+1 patterns, caching gaps, frontend perf.
 
-11. Collect all reports and present them to the user.
+11. Collect all reports. Record which reviewers **passed** and which **flagged issues**. Present findings to the user.
 
 12. Evaluate findings:
     - **No violations or warnings** → proceed to Phase 5.
-    - **Implementation errors only** (code quality issues, bugs, style) → pass findings to the **developer agent** (via `SendMessage`) for corrections. Then re-run Phase 3 (testing) and Phase 4 (review).
-    - **Design errors** (wrong abstraction, domain boundary violation, requirement mismatch, missing functionality) → pass findings back to the **architect agent** (via `SendMessage`) to revise the plan. Then re-run from Phase 2.
-    - **Maximum 3 iterations** of the full review loop. If issues persist, present to the user via `AskUserQuestion`:
+    - **Implementation errors only** (code quality issues, bugs, style) → pass findings to the **developer agent** (via `SendMessage`) for corrections. Re-run Phase 3 (testing), then **re-run only the reviewers that previously flagged issues** — skip reviewers that already passed.
+    - **Design errors** (wrong abstraction, domain boundary violation, requirement mismatch, missing functionality) → pass findings back to the **architect agent** (via `SendMessage`) to revise the plan. Re-run from Phase 2 with all reviewers reset.
+    - **Maximum 2 iterations** of the full review loop. If issues persist, present via `AskUserQuestion`:
       - "Continue iterating"
       - "Accept current state — I'll handle remaining issues"
       - "Stop and roll back"
@@ -88,7 +90,8 @@ The user provides a requirement — either a path to a requirements document (fr
 - **Always use `SendMessage`** to continue an existing agent rather than spawning a new one (except for the test-writer, which should be spawned fresh each iteration since it re-analyses changes from scratch).
 - **Never skip phases** — every implementation must go through architect → dev → test → review.
 - **Never apply fixes yourself** — always delegate to the appropriate agent.
-- **Track iteration counts** and enforce the maximum of 3 per loop to avoid infinite cycles.
+- **Track iteration counts** and enforce the maximum of **2 per loop** to avoid infinite cycles.
+- **Only re-run reviewers that flagged issues** in iteration 2 — do not re-spawn reviewers that already passed.
 - When routing errors back to agents, include the **specific findings** and **file/line references** so the agent has full context.
 - Use British English throughout.
 
