@@ -29,6 +29,7 @@ Read and follow all rules in [`../shared/_ux-rules.md`](../shared/_ux-rules.md).
    - **Symptom** — what the user is seeing
    - **Suspected area** — component, layer, or service (if mentioned)
    - **Azure involved?** — does the description mention infrastructure, auth, Key Vault, app registrations, Azure AD, Entra, MSAL, tenant, subscription, Static Web App, App Service, managed identity, deployments, or cloud resources?
+   - **Browser involved?** — does the description mention a URL, live app, web UI, API response in a browser, page behaviour, network requests, console errors, or anything requiring a running application?
 
 3. Present the brief and ask the user to confirm or correct it using `AskUserQuestion`:
    - `Looks right — start investigating`
@@ -73,9 +74,12 @@ If the user selects **"Go deeper"**: proceed to Phase 1 below.
 
 ### Phase 1 — Parallel investigation
 
-Launch **both agents simultaneously** when Azure is relevant. Otherwise launch only the code agent.
+Launch agents simultaneously based on what is relevant:
+- **Code agent** — always
+- **Azure agent** — only when Azure is relevant (from brief)
+- **Browser investigation** — only when Browser is relevant (from brief); run inline, not via a spawned agent
 
-### 1a — Code investigation (always)
+#### 1a — Code investigation (always)
 
 Spawn the agent defined in `${CLAUDE_PLUGIN_ROOT}/agents/repo-archaeologist.md`.
 
@@ -118,7 +122,46 @@ List any test files that cover the affected area. Note if they are passing, fail
 What you could not determine from static analysis alone (e.g. runtime values, external state, environment-specific behaviour).
 ```
 
-### 1b — Azure investigation (only when Azure is relevant)
+#### 1b — Browser investigation (only when Browser is relevant)
+
+Use Claude in Chrome tools directly (no agent spawn). Load each tool via `ToolSearch` with `select:mcp__claude-in-chrome__<tool_name>` before calling it.
+
+Steps:
+1. Load `mcp__claude-in-chrome__tabs_context_mcp` and call it to see what tabs are already open. If a relevant tab (matching the URL or app from the brief) is already open, reuse it; otherwise create a new tab.
+2. Navigate to the URL or app identified in the brief. If no URL was given, ask the user via `AskUserQuestion` before navigating:
+   - Question: "What URL should I open to investigate this in the browser?"
+   - Option: `I'll provide it` (user types in the Other input)
+3. Use `mcp__claude-in-chrome__get_page_text` and `mcp__claude-in-chrome__read_page` to capture page content.
+4. Use `mcp__claude-in-chrome__read_console_messages` (with a relevant `pattern` if possible) to collect any console errors or logs.
+5. Use `mcp__claude-in-chrome__read_network_requests` to observe API calls, status codes, and payloads relevant to the investigation.
+6. If useful, use `mcp__claude-in-chrome__javascript_tool` to inspect DOM state or evaluate expressions — never trigger alert/confirm/prompt dialogs.
+7. Produce a **Browser Findings** section:
+
+```markdown
+### Browser Findings
+
+#### URL / App
+<URL navigated to>
+
+#### Page State
+<what the page shows, key UI elements, visible data>
+
+#### Console
+<relevant console messages, errors, warnings — with patterns used to filter>
+
+#### Network Requests
+<key API calls: method, URL, status, notable response data>
+
+#### Observations
+<bullet list of browser-observable behaviours relevant to the bug symptom>
+```
+
+**Constraints:**
+- Never trigger browser dialogs (alert, confirm, prompt).
+- Do not modify page state beyond what is needed to observe the system.
+- If a tool call fails after 2 attempts, note the failure and move on — do not loop.
+
+#### 1c — Azure investigation (only when Azure is relevant)
 
 Spawn the agent defined in `${CLAUDE_PLUGIN_ROOT}/agents/azure-investigator.md`.
 
@@ -138,7 +181,13 @@ Wait for the agent to return its Phase 0 output (active Azure context or "not lo
 
 ---
 
-### Phase 2 — Azure context confirmation gate
+### Phase 2 — Browser and Azure context confirmation gates
+
+#### Browser
+
+If browser investigation produced findings: include the **Browser Findings** section in Phase 3 as-is. No gate required — the investigation was local and read-only.
+
+#### Azure
 
 Receive the Phase 0 output from the azure-investigator agent.
 
@@ -186,6 +235,11 @@ Present the consolidated Debug Report to the user:
 
 ---
 
+### Browser Findings
+<Browser Findings section from Phase 1b — or "Not investigated (no live app or URL identified in the symptom)">
+
+---
+
 ### Azure Findings
 <verbatim Azure Findings Report from the azure-investigator agent — or "Not investigated (Azure not relevant)", "Skipped by user", "Not logged in — no active az CLI session">
 
@@ -197,7 +251,7 @@ Present the consolidated Debug Report to the user:
 ---
 
 > This report is read-only. No code or infrastructure was modified.
-> Next step: decide how to address the root cause, then use `/project-implement-fix` or apply the fix manually.
+> **Next step**: use `/project-decide` to evaluate solution options and get a recommended direction — then use `/project-implement-fix` or `/project-implement-new-features` to act.
 ```
 
 ---

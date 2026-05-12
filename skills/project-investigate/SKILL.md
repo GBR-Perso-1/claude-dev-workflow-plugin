@@ -77,7 +77,7 @@ Launch agents simultaneously based on what is relevant:
 - **Azure agent** — only when Azure is relevant (from brief)
 - **Browser investigation** — only when Browser is relevant (from brief); run inline, not via a spawned agent
 
-### 1a — Code investigation (always)
+#### 1a — Code investigation (always)
 
 Spawn the agent defined in `${CLAUDE_PLUGIN_ROOT}/agents/repo-archaeologist.md`.
 
@@ -124,7 +124,7 @@ What the current approach is optimised for, and what it sacrifices. Grounded in 
 What could not be determined from static analysis alone (e.g. runtime behaviour, load characteristics, external dependencies).
 ```
 
-### 1b — Browser investigation (only when Browser is relevant)
+#### 1b — Browser investigation (only when Browser is relevant)
 
 Use Claude in Chrome tools directly (no agent spawn). Load each tool via `ToolSearch` with `select:mcp__claude-in-chrome__<tool_name>` before calling it.
 
@@ -163,7 +163,7 @@ Steps:
 - Do not modify page state beyond what is needed to observe the system.
 - If a tool call fails after 2 attempts, note the failure and move on — do not loop.
 
-### 1c — Azure investigation (only when Azure is relevant)
+#### 1c — Azure investigation (only when Azure is relevant)
 
 Spawn the agent defined in `${CLAUDE_PLUGIN_ROOT}/agents/azure-investigator.md`.
 
@@ -256,7 +256,7 @@ Present the consolidated Investigation Report to the user:
 ---
 
 > This report is read-only. No code or infrastructure was modified.
-> Next step: decide how to act on these findings. If a change is needed, use `/project-implement-new-features` or `/project-implement-fix` as appropriate.
+> **Next step**: use `/project-decide` to evaluate solution options and get a recommended direction — then use `/project-implement-fix` or `/project-implement-new-features` to act.
 ```
 
 ---
