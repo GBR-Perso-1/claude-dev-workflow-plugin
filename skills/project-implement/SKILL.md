@@ -19,29 +19,35 @@ Read and follow all rules in [`../shared/_ux-rules.md`](../shared/_ux-rules.md).
 
 | Value | Mode | Input treatment |
 |---|---|---|
-| Empty | **Full** | Ask the user for a requirement before doing anything |
+| Empty | Ask | Prompt for mode, then prompt for requirement |
 | `full <text>` or `full` | **Full** | Treat remainder as the requirement; ask if blank |
 | `draft <text>` or `draft` | **Draft** | Treat remainder as the requirement; ask if blank |
 | `quick <text>` or `quick` | **Quick** | Treat remainder as the requirement; ask if blank |
 
-If `$ARGUMENTS` is a non-empty string that does not start with a recognised mode keyword, treat the entire string as the requirement and run **Full** mode.
+If `$ARGUMENTS` is a non-empty string that does not start with a recognised mode keyword, treat the entire string as the requirement and prompt for the mode.
 
 ---
 
 ## Phase 0 — Mode selection and input gathering
 
 1. Parse `$ARGUMENTS`:
-   - Extract the mode keyword if present (`full`, `draft`, `quick`). If absent or unrecognised, default to **Full**.
+   - Extract the mode keyword if present (`full`, `draft`, `quick`).
    - Extract the remainder as the requirement text (may be a path to a requirements document or an inline description).
-2. If the requirement text is blank (regardless of mode), ask via `AskUserQuestion`:
+2. If no mode keyword was found, ask via `AskUserQuestion`:
+   - Question: "Which implementation mode?"
+   - Options:
+     - `full — architect → dev → test → review (Recommended)`
+     - `draft — architect + dev only, no test or review`
+     - `quick — dev only, no ceremony`
+3. If the requirement text is blank (regardless of mode), ask via `AskUserQuestion`:
    - Question: "What would you like to implement? Provide an inline description or a path to a requirements document."
    - Option: `I'll describe it`
-3. If a file path was provided, read the file now.
-4. Restate the requirement as a short implementation brief:
+4. If a file path was provided, read the file now.
+5. Restate the requirement as a short implementation brief:
    - What needs to change and where (component, layer, or file if known)
    - Expected outcome
    - Any constraints or edge cases mentioned
-5. Present the brief and confirm with the user via `AskUserQuestion`:
+6. Present the brief and confirm with the user via `AskUserQuestion`:
    - `Looks right — proceed` *(label this as Recommended)*
    - `Let me clarify`
 
