@@ -1,10 +1,10 @@
 ---
 name: project-investigate
 description: >
-  Investigate a codebase or system. Three modes:
-  no args = full repository archaeology;
-  "debug <symptom>" = bug-hunt (locate root cause, report only);
-  "<question>" = analytical investigation (patterns, tradeoffs, design).
+  Investigate a codebase or system. Three modes, chosen interactively:
+  no args = ask for a question or offer full repository archaeology;
+  Bug hunt = locate root cause of a defect, report only;
+  Analytical = explore patterns, tradeoffs, or design.
   Always read-only — never modifies code or infrastructure.
 ---
 
@@ -21,60 +21,79 @@ Read and follow all rules in [`../shared/_ux-rules.md`](../shared/_ux-rules.md).
 
 `$ARGUMENTS` determines the mode:
 
-| Value | Mode |
+| Value | Behaviour |
 |---|---|
-| Empty | **Archaeology** — full blind repo scan |
-| Starts with `debug` | **Debug** — bug-hunt; strip the word "debug" and treat the remainder as the symptom description |
-| Anything else | **Investigate** — analytical question-driven exploration |
+| Empty | Prompt the user for a question via `AskUserQuestion` before doing anything |
+| Any text | Treat as the question/symptom and proceed to Phase 0 of the appropriate mode |
+
+Mode selection (Bug hunt vs Analytical) is always done interactively in Phase 0 — never inferred from a prefix.
 
 ---
 
-### Archaeology Mode (no arguments)
+### No-argument behaviour
 
-When `$ARGUMENTS` is empty, skip all phases and run a full blind repository scan:
+When `$ARGUMENTS` is empty:
 
-1. Spawn the agent defined in `${CLAUDE_PLUGIN_ROOT}/agents/repo-archaeologist.md`.
-   - Pass no additional arguments — the agent operates on the current working directory.
-   - Instruct it to complete all phases, return its structured summary, and **not write any report file**.
-2. Wait for the agent to return its summary, then present it:
+1. Ask via `AskUserQuestion`:
+   - Question: "What would you like to investigate? You can describe a specific question or symptom, or run a full repository archaeology scan to understand the codebase from scratch."
+   - Options:
+     - `I have a specific question or symptom — I'll describe it`
+     - `Run full repository archaeology — blind scan of everything`
 
-```markdown
-## Repository Archaeology — Summary
+2. If the user selects **"Run full repository archaeology"**:
+   - Spawn the agent defined in `${CLAUDE_PLUGIN_ROOT}/agents/repo-archaeologist.md`.
+     - Pass no additional arguments — the agent operates on the current working directory.
+     - Instruct it to complete all phases, return its structured summary, and **not write any report file**.
+   - Wait for the agent to return its summary, then present it:
 
-### Purpose
-<agent's Purpose paragraph>
+     ```markdown
+     ## Repository Archaeology — Summary
 
-### Key Workflows
-<agent's Key Workflows list>
+     ### Purpose
+     <agent's Purpose paragraph>
 
-### Notable Quirks
-<agent's Notable Quirks list>
+     ### Key Workflows
+     <agent's Key Workflows list>
 
-### Documentation Gaps
-Total: N gaps (Type A: N — undocumented code | Type B: N — stale docs | Type C: N — unexplained rules)
-```
+     ### Notable Quirks
+     <agent's Notable Quirks list>
 
-3. The skill ends here.
+     ### Documentation Gaps
+     Total: N gaps (Type A: N — undocumented code | Type B: N — stale docs | Type C: N — unexplained rules)
+     ```
+
+   - The skill ends here.
+
+3. If the user selects **"I have a specific question or symptom"**:
+   - Accept their free-text input as `$ARGUMENTS` and proceed to Phase 0 of the mode-selection flow below.
 
 ---
 
-### Debug Mode (`debug <symptom>`)
+### Phase 0 — Understand the question *(applies to both Bug Hunt and Analytical paths)*
 
-#### Phase 0 — Understand the issue
+1. If `$ARGUMENTS` was provided, read it as the initial question or symptom. If it was blank and the user typed their question in response to the no-argument prompt, use that text.
 
-1. If the symptom text (after stripping "debug") is blank, ask via `AskUserQuestion`:
-   - Question: "What issue or symptom would you like investigated? Include any error messages, affected component names, or reproduction steps you already have."
-   - Option: `I'll describe it`
-
-2. Restate as a short investigation brief:
-   - **Symptom** — what the user is seeing
-   - **Suspected area** — component, layer, or service (if mentioned)
+2. Restate the input as a short investigation brief:
+   - **Question / Symptom** — what the user wants to understand or what they are seeing
+   - **Scope** — component, layer, or service (if mentioned)
    - **Azure involved?** — infrastructure, auth, Key Vault, app registrations, Azure AD, Entra, MSAL, tenant, subscription, Static Web App, App Service, managed identity, deployments, or cloud resources
    - **Browser involved?** — URL, live app, web UI, API response in a browser, page behaviour, network requests, console errors, or anything requiring a running application
 
 3. Present the brief and ask via `AskUserQuestion`:
-   - `Looks right — start investigating`
+   - `Looks right — continue`
    - `Let me clarify`
+
+4. Ask via `AskUserQuestion`:
+   - Question: "Is this a bug hunt or an analytical investigation?"
+   - Options:
+     - `Bug hunt — find a defect`
+     - `Analytical — understand patterns / design`
+
+5. Based on the user's selection, proceed to **Debug Mode Phase 0.5** or **Investigate Mode Phase 0.5** respectively.
+
+---
+
+### Debug Mode
 
 #### Phase 0.5 — Quick scan
 
@@ -197,24 +216,15 @@ Same as Investigate Mode Phase 2.
 ---
 
 > This report is read-only. No code or infrastructure was modified.
-> **Next step**: use `/project-decide` to evaluate solution options, or `/project-requirements` to go straight to requirements — then `/project-implement-fix` or `/project-implement-new-features` to act.
+> **Next step**: use `/project-decide` to evaluate solution options, or `/project-requirements` to go straight to requirements — then use `/project-implement` to act:
+> - `/project-implement` — full architect → dev → test → review pipeline (default)
+> - `/project-implement draft` — architect + developer only, for fast iteration
+> - `/project-implement quick` — developer only, for small contained changes
 ```
 
 ---
 
-### Investigate Mode (`<question>`)
-
-#### Phase 0 — Understand the question
-
-1. Restate `$ARGUMENTS` as a short investigation brief:
-   - **Question** — what the user wants to understand
-   - **Scope** — component, layer, or service (if mentioned)
-   - **Azure involved?** — infrastructure, auth, Key Vault, app registrations, Azure AD, Entra, MSAL, tenant, subscription, Static Web App, App Service, managed identity, deployments, or cloud resources
-   - **Browser involved?** — URL, live app, web UI, API response in a browser, page behaviour, network requests, console errors, or anything requiring a running application
-
-2. Present the brief and ask via `AskUserQuestion`:
-   - `Looks right — start investigating`
-   - `Let me clarify`
+### Investigate Mode
 
 #### Phase 0.5 — Quick scan
 
@@ -341,7 +351,10 @@ Same as Debug Mode Phase 2.
 ---
 
 > This report is read-only. No code or infrastructure was modified.
-> **Next step**: use `/project-decide` to evaluate solution options, or `/project-requirements` to go straight to requirements — then `/project-implement-fix` or `/project-implement-new-features` to act.
+> **Next step**: use `/project-decide` to evaluate solution options, or `/project-requirements` to go straight to requirements — then use `/project-implement` to act:
+> - `/project-implement` — full architect → dev → test → review pipeline (default)
+> - `/project-implement draft` — architect + developer only, for fast iteration
+> - `/project-implement quick` — developer only, for small contained changes
 ```
 
 ---

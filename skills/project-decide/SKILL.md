@@ -24,7 +24,7 @@ The skill's primary input is the **investigation or debug report already present
 
 ### Phase 0 — Locate and absorb the report
 
-1. Scan the current conversation context for an Investigation Report (produced by `/project-investigate`) or a Debug Report (produced by `/project-debug`). If both are present, prefer the most recent one.
+1. Scan the current conversation context for an Investigation Report or a Debug Report — both produced by `/project-investigate`. If both are present, prefer the most recent one.
 
 2. If no report is found in the conversation, stop and inform the user:
 
@@ -32,7 +32,6 @@ The skill's primary input is the **investigation or debug report already present
    - Question: "No investigation or debug report was found in the conversation. Would you like to run one first, or paste the findings directly?"
    - Options:
      - `Run /project-investigate first`
-     - `Run /project-debug first`
      - `Paste findings now (I'll provide them)`
 
    If the user selects "Paste findings now", accept their free-text input as the findings and continue.
@@ -147,8 +146,9 @@ Present the full Decision Report to the user:
 > This report is read-only. No code or infrastructure was modified.
 > **Next step**: use `/project-requirements` to produce a formal requirements document before implementation.
 > **Or, to act immediately without a formal requirements document**:
-> - `/project-implement-fix` — for contained fixes and small changes
-> - `/project-implement-new-features` — for larger structural changes or new capabilities
+> - `/project-implement quick` — for contained fixes and small changes (developer only)
+> - `/project-implement draft` — for exploratory or POC work (architect + developer)
+> - `/project-implement` — for larger structural changes or new capabilities (full pipeline)
 ```
 
 No confirmation gate is needed after presenting this report — it is a read-only analytical output. The user decides whether and how to act on it.

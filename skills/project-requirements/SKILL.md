@@ -149,6 +149,7 @@ Break the implementation into ordered batches. Each phase should be deliverable 
 
 ---
 
-> **Next step**: once the requirements document is saved, use:
-> - `/project-implement-new-features` — to implement using the full architect → dev → test → review pipeline
-> - `/project-implement-fix` — for small or contained changes that don't need the full pipeline
+> **Next step**: once the requirements document is saved, use `/project-implement` to act on these requirements.
+> - `/project-implement` — full architect → dev → test → review pipeline (default)
+> - `/project-implement draft` — architect + developer only, no test loop, for fast iteration
+> - `/project-implement quick` — developer only, for small or contained changes
